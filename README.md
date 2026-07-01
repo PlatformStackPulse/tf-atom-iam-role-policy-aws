@@ -6,9 +6,40 @@
 
 ---
 
-## Purpose
+Terraform atom that embeds a single inline IAM policy inside an existing IAM role. Naming and tagging follow the [tf-label](https://github.com/PlatformStackPulse/tf-label) convention (`namespace-environment-stage-name`), so the inline policy name is derived deterministically from the module's context.
 
-Terraform atom: AWS IAM Role Policy (Inline) - embeds an inline policy in an IAM role
+## Features
+
+- Creates one `aws_iam_role_policy` (inline policy) attached to an existing role.
+- Deterministic policy naming via tf-label — the policy `name` is the tf-label `id`.
+- `enabled` toggle: set `enabled = false` to create nothing (all outputs return `null`).
+- Input validation: `role_name` is checked against the valid IAM name character set and `policy` must be valid JSON.
+- Full tf-label context passthrough (`context`, `namespace`, `stage`, `tags`, etc.) for composition with other tf-label modules.
+
+## Usage
+
+```hcl
+module "iam_role_policy" {
+  source = "git::https://github.com/PlatformStackPulse/tf-atom-iam-role-policy-aws.git?ref=v1.0.0"
+
+  namespace = "eg"
+  stage     = "test"
+  name      = "thing"
+
+  role_name = "eg-test-thing-role"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowS3Read"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = ["arn:aws:s3:::example-bucket/*"]
+      }
+    ]
+  })
+}
+```
 
 ## Module Documentation
 
@@ -71,3 +102,19 @@ Terraform atom: AWS IAM Role Policy (Inline) - embeds an inline policy in an IAM
 | <a name="output_policy_name"></a> [policy\_name](#output\_policy\_name) | Name of the inline policy |
 | <a name="output_role"></a> [role](#output\_role) | Role the policy is attached to |
 <!-- END_TF_DOCS -->
+
+## Tests
+
+Unit tests use the Terraform native test framework with a mocked AWS provider (no real AWS calls) and assert on plan-known values (the tf-label `id`, resource count, and input pass-throughs).
+
+```bash
+# Unit tests (mocked provider, no credentials required)
+terraform init -backend=false
+terraform test -test-directory=tests/unit
+
+# Or via the Makefile
+make test-unit
+
+# Integration tests (require real AWS credentials)
+terraform test -test-directory=tests/integration
+```
